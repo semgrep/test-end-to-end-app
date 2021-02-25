@@ -183,7 +183,7 @@ print({run_id})
 if {run_id} == {run_id}:
     print("got here")
 
-client("s3", aws_secret_access_key=fakefakefake{run_id}fakefake)
+client("s3", aws_secret_access_key="fakefakefake{run_id}fakefake")
 """
     gh_create_file(TEST_FILE_PATH, file_contents=file_contents, branch=get_branch_from_id(run_id))
 
