@@ -231,6 +231,8 @@ def run_tests():
         message = validate_slack_notification(run_id)
         if pr_comments and message:
             break
+        if i < 2:
+            print('Missing at least one notification... checking again in a minute')
 
     close_pr(pr_id)
     gh_delete_branch(get_branch_from_id(run_id))
