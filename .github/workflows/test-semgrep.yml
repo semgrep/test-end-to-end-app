@@ -1,0 +1,35 @@
+# This will trigger a buggy PR to be created, and check that Semgrep finds the bug, posts an inline pr comment, and sends a slack notification
+name: Test Semgrep CI End to End
+
+# Controls when the action will run. 
+on:
+  schedule:
+    # Run every 20 min: see https://jasonet.co/posts/scheduled-actions/
+    - cron: "*/20 * * * *"
+
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+# A workflow run is made up of one or more jobs that can run sequentially or in parallel
+jobs:
+  # This workflow contains a single job called "build"
+  build:
+    # The type of runner that the job will run on
+    runs-on: ubuntu-latest
+
+    # Steps represent a sequence of tasks that will be executed as part of the job
+    steps:
+      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+      - uses: actions/checkout@v2
+      # Install dependencies
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install sentry-sdk
+      # Run test script
+      - name: Run test-semgrep-app-e2e
+        run: python ./scripts/test-semgrep-app-e2e.py
+        env:
+          GITHUB_TOKEN: ${{ secrets.CLARA_PAT }}
+          SLACK_E2E_TOKEN: ${{ secrets.SLACK_E2E_TOKEN }}
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
