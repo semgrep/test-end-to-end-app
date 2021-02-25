@@ -236,15 +236,15 @@ def run_tests():
 
     close_pr(pr_id)
     gh_delete_branch(get_branch_from_id(run_id))
-    
+
     if pr_comment_staging and pr_comment_prod and slack_notifications:
         print("SUCCESS!")
-        # notify_sentry("testing e2e test alarm system - ignore me", "info")
+        notify_sentry("testing e2e test alarm system - ignore me", "info")
         sys.exit(0)
     
     # all other cases
     print("TEST FAILED")
-    # notify_sentry("End-to-end Semgrep test failed on semgrep.dev", "error")
+    notify_sentry("End-to-end Semgrep test failed on semgrep.dev", "error")
     sys.exit(1)
 
 
