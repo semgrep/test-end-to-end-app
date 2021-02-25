@@ -11,7 +11,7 @@ import sentry_sdk
 ######## CONSTANTS ###########################################################
 ##############################################################################
 
-REPO = "returntocorp/test-end-to-end-app"
+REPO = "semgrep/test-end-to-end-app"
 TEST_FILE_PATH = "test.py"
 
 BASE_REF = "main"
@@ -140,7 +140,10 @@ def slack_last_message():
     resp = requests.get(url, headers=headers, timeout=30)
     resp.raise_for_status()
     data = resp.json()
-    return data['messages'][0]
+    msgs = data.get('messages')
+    if msgs:
+        return msgs[0]
+    return False
 
 ##############################################################################
 ######### SENTRY API CALLS ###################################################
