@@ -1,0 +1,17 @@
+on:
+  pull_request: {}
+name: Semgrep Staging
+jobs:
+  semgrep-staging:
+    name: Scan
+    runs-on: ubuntu-latest
+    env:	
+      INPUT_PUBLISHURL: https://staging.semgrep.dev
+    steps:
+    - uses: actions/checkout@v2
+    - uses: returntocorp/semgrep-action@v1
+      with:
+        publishToken: ${{ secrets.SEMGREP_STAGING_SECRET }}
+        publishDeployment: 53
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
