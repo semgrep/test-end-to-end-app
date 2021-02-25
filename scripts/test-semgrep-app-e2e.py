@@ -134,16 +134,14 @@ def gh_delete_branch(
 ######### SLACK API CALLS ####################################################
 ##############################################################################
 
-def slack_last_message():
-    url = f"https://slack.com/api/conversations.history?channel={SLACK_CHANNEL}&limit=1"
+def slack_last_x_messages(num_messages: int):
+    url = f"https://slack.com/api/conversations.history?channel={SLACK_CHANNEL}&limit={num_messages}"
     headers = {"Authorization": f"Bearer {SLACK_TOKEN}"}
     resp = requests.get(url, headers=headers, timeout=30)
     resp.raise_for_status()
     data = resp.json()
     msgs = data.get('messages')
-    if msgs:
-        return msgs[0]
-    return False
+    return msgs
 
 ##############################################################################
 ######### SENTRY API CALLS ###################################################
@@ -190,25 +188,24 @@ client("s3", aws_secret_access_key="fakefakefake{run_id}fakefake")
 def open_pr(run_id: int) -> str:
     return gh_create_pr({"title": f"Test run: {run_id}", "body": f"Test PR for test run_id: {run_id}"}, BASE_REF, branch=get_branch_from_id(run_id))
 
-def validate_pr_comment(pull_number: int):
+def validate_pr_comment(pull_number: int, rule: str):
     reviews = gh_get_reviews(pull_number)
-    if len(reviews) < 1:
-        # PR comment has not yet been posted
+    review_ids = [reviews[i].get('id') for i in range(len(reviews))]
+    for review_id in review_ids:
+        comments = gh_get_review_comments(pull_number, review_id)
+        if len(comments) >= 1 and rule in comments[0].get('body'):
+            return True
+    return False
+
+def validate_slack_notifications(run_id: int):
+    messages = slack_last_x_messages(2)
+    if len(messages) < 2:
+        print('found fewer than 2 slack messages')
         return False
-    review_id = reviews[0].get('id')
-    comments = gh_get_review_comments(pull_number, review_id)
-    if len(comments) < 1:
-        return False
-    if comments[0].get('path') != 'test.py':
-        return False
-    if 'useless-eqeq' not in comments[0].get('body'):
-        return False
+    for message in messages:
+        if (str(run_id) not in message['blocks'][1]['elements'][1]['text']):
+            return False
     return True
-
-def validate_slack_notification(run_id: int):
-    message = slack_last_message()
-    return (REPO in message.get('text','')) and (str(run_id) in message['blocks'][1]['elements'][1]['text'])
-
 
 def close_pr(pull_number: int):
     gh_close_pr(pull_number)
@@ -225,27 +222,29 @@ def run_tests():
     update_file(run_id)
     pr_id = open_pr(run_id)
 
-    message = None
-    for i in range(3):
-        # wait for Semgrep to finish running on the PR
+    for i in range(6):
+        # wait for semgrep and staging.semgrep to finish running on the PR
         time.sleep(50)
-        pr_comments = validate_pr_comment(pr_id)
-        message = validate_slack_notification(run_id)
-        if pr_comments and message:
+        pr_comment_staging = validate_pr_comment(pr_id, 'useless-eqeq')
+        pr_comment_prod = validate_pr_comment(pr_id, 'hardcoded-token')
+        slack_notifications = validate_slack_notifications(run_id)
+        if pr_comment_staging and pr_comment_prod and slack_notifications:
             break
+        # Gives reassurance that action is still looking
         if i < 2:
             print('Missing at least one notification... checking again in a minute')
 
     close_pr(pr_id)
     gh_delete_branch(get_branch_from_id(run_id))
-    if pr_comments and message:
+    
+    if pr_comment_staging and pr_comment_prod and slack_notifications:
         print("SUCCESS!")
-        notify_sentry("testing e2e test alarm system - ignore me", "info")
+        # notify_sentry("testing e2e test alarm system - ignore me", "info")
         sys.exit(0)
     
     # all other cases
     print("TEST FAILED")
-    notify_sentry("End-to-end Semgrep test failed on semgrep.dev", "error")
+    # notify_sentry("End-to-end Semgrep test failed on semgrep.dev", "error")
     sys.exit(1)
 
 
