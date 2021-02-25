@@ -222,17 +222,17 @@ def run_tests():
     update_file(run_id)
     pr_id = open_pr(run_id)
 
-    for i in range(6):
+    for i in range(4):
         # wait for semgrep and staging.semgrep to finish running on the PR
-        time.sleep(50)
+        time.sleep(120)
         pr_comment_staging = validate_pr_comment(pr_id, 'useless-eqeq')
         pr_comment_prod = validate_pr_comment(pr_id, 'hardcoded-token')
         slack_notifications = validate_slack_notifications(run_id)
         if pr_comment_staging and pr_comment_prod and slack_notifications:
             break
         # Gives reassurance that action is still looking
-        if i < 2:
-            print('Missing at least one notification... checking again in a minute')
+        if i < 3:
+            print('Missing at least one notification... checking again in two minutes')
 
     close_pr(pr_id)
     gh_delete_branch(get_branch_from_id(run_id))
