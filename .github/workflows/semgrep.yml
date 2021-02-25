@@ -10,6 +10,6 @@ jobs:
     - uses: returntocorp/semgrep-action@v1
       with:
         publishToken: ${{ secrets.SEMGREP_APP_TOKEN }}
-        publishDeployment: 138
+        publishDeployment: 138 # organization: semgrep
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
