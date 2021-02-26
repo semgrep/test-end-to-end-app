@@ -234,6 +234,11 @@ def run_tests():
         if i < 3:
             print('Missing at least one notification... checking again in two minutes')
 
+    if pr_comment_prod and not pr_comment_staging:
+        print("TEST FAILED ON STAGING")
+        notify_sentry("End-to-end Semgrep test failed on staging.semgrep.dev", "error")
+        sys.exit(1)
+            
     if pr_comment_staging and pr_comment_prod and slack_notifications:
         close_pr(pr_id)
         gh_delete_branch(get_branch_from_id(run_id))
