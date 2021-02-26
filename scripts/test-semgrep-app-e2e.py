@@ -234,10 +234,9 @@ def run_tests():
         if i < 3:
             print('Missing at least one notification... checking again in two minutes')
 
-    close_pr(pr_id)
-    gh_delete_branch(get_branch_from_id(run_id))
-
     if pr_comment_staging and pr_comment_prod and slack_notifications:
+        close_pr(pr_id)
+        gh_delete_branch(get_branch_from_id(run_id))
         print("SUCCESS!")
         notify_sentry("testing e2e test alarm system - ignore me", "info")
         sys.exit(0)
