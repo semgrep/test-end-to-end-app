@@ -222,7 +222,7 @@ def run_tests():
     update_file(run_id)
     pr_id = open_pr(run_id)
 
-    for i in range(4):
+    for i in range(8):
         # wait for semgrep and staging.semgrep to finish running on the PR
         time.sleep(120)
         pr_comment_staging = validate_pr_comment(pr_id, 'useless-eqeq')
