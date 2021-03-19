@@ -13,5 +13,3 @@ jobs:
       with:
         publishToken: ${{ secrets.SEMGREP_STAGING_SECRET }}
         publishDeployment: 53
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
