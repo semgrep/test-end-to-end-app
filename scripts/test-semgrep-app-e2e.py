@@ -190,6 +190,10 @@ def open_pr(run_id: int) -> str:
 
 def validate_pr_comment(pull_number: int, rule: str):
     reviews = gh_get_reviews(pull_number)
+    if len(reviews) > 2:
+        print("Overrides may have stopped working")
+        notify_sentry("End-to-end Semgrep test for overrides failed", "error")
+        sys.exit(1)
     review_ids = [reviews[i].get('id') for i in range(len(reviews))]
     for review_id in review_ids:
         comments = gh_get_review_comments(pull_number, review_id)
