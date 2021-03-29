@@ -6,7 +6,7 @@ To change how frequently this test runs, edit `.github/workflows/test-semgrep.ym
 To change the contents of the pull request that is opened, edit `./scripts/test-semgrep-app-e2e.py`
 To change the policy that will run, go to the Semgrep Dashboard on semgrep.dev or staging.semgrep.dev
 
-To test your changes locally, you can just run `python ./scripts/test-semgrep-app-e2e.py`
+To test your changes locally, you can just run `python ./scripts/test-semgrep-app-e2e.py`. You will need to set some environment variables locally to make this work.
 You can also test the action job by navigating to the "Actions" tab in GitHub, selecting "Test Semgrep CI End to End", and clicking "Run workflow"
 
 **Note: The cron job will not run exactly every X minutes, but is subject to availability of GitHub Actions.**
