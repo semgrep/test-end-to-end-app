@@ -147,7 +147,7 @@ def slack_last_x_messages(num_messages: int):
 ######### SENTRY API CALLS ###################################################
 ##############################################################################
 
-def notify_sentry(message: str, level: str):
+def notify_sentry(message: str, pr_id: int, level: str):
     sentry_sdk.init(
         SENTRY_DSN,
         # Set traces_sample_rate to 1.0 to capture 100%
@@ -157,7 +157,13 @@ def notify_sentry(message: str, level: str):
         environment="prod",
     )
     sentry_sdk.set_level(level)
-    sentry_sdk.capture_message(message)
+
+    pr_url = f"https://github.com/semgrep/test-end-to-end-app/pull/{pr_id}"
+
+    with sentry_sdk.push_scope() as scope:
+        scope.set_extra("pr_id", pr_id)
+        scope.set_extra("pr_url", pr_url)
+        sentry_sdk.capture_message(message)
 
 ##############################################################################
 ######## HELPER FUNCTIONS ####################################################
@@ -224,7 +230,7 @@ def run_tests():
     # Create a new PR with a known eqeq bug
     new_branch = create_branch(run_id)
     update_file(run_id)
-    pr_id = open_pr(run_id)
+    pr_id = int(open_pr(run_id))
 
     for i in range(8):
         # wait for semgrep and staging.semgrep to finish running on the PR
@@ -240,7 +246,7 @@ def run_tests():
 
     if pr_comment_prod and not pr_comment_staging:
         print("TEST FAILED ON STAGING")
-        notify_sentry("End-to-end Semgrep test failed on staging.semgrep.dev", "error")
+        notify_sentry(f"End-to-end Semgrep test failed on staging.semgrep.dev: no PR comment", pr_id, "error")
         sys.exit(1)
             
     if pr_comment_staging and pr_comment_prod and slack_notifications:
@@ -252,7 +258,8 @@ def run_tests():
     
     # all other cases
     print("TEST FAILED")
-    notify_sentry("End-to-end Semgrep test failed on semgrep.dev", "error")
+    prod_failure_mode = "no PR comment" if not pr_comment_prod else "no Slack notification"
+    notify_sentry(f"End-to-end Semgrep test failed on semgrep.dev: {prod_failure_mode}", pr_id, "error")
     sys.exit(1)
 
 
