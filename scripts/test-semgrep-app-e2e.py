@@ -44,7 +44,7 @@ def gh_create_branch(branch: str) -> None:
         resp.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
         and resp.json()["message"] == "Reference already exists"
     ):
-        raise Exception(f"Repo {repo_full_name} already has a branch named {branch}")
+        raise Exception(f"Repo {REPO} already has a branch named {branch}")
     resp.raise_for_status()
 
 def gh_create_file(
@@ -253,7 +253,7 @@ def run_tests():
         close_pr(pr_id)
         gh_delete_branch(get_branch_from_id(run_id))
         print("SUCCESS!")
-        notify_sentry("testing e2e test alarm system - ignore me", "info")
+        notify_sentry("testing e2e test alarm system - ignore me", pr_id, "info")
         sys.exit(0)
     
     # all other cases
