@@ -247,6 +247,8 @@ def run_tests():
     update_file(run_id)
     pr_id = int(open_pr(run_id))
 
+    pr_comment_prod, pr_comment_staging, slack_notifications = False, False, False
+
     for i in range(8):
         # wait for semgrep and staging.semgrep to finish running on the PR
         logging.info(f"Sleeping for 2 minutes...")
