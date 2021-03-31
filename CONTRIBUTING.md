@@ -9,7 +9,8 @@ To change the policy that will run, go to the Semgrep Dashboard on semgrep.dev o
 To test your changes locally, you can just run `python ./scripts/test-semgrep-app-e2e.py`. You will need to set some environment variables locally to make this work:
 - `GITHUB_TOKEN`: Use a PAT with "repo" level permissions; you can create this at
   https://github.com/settings/tokens
-- `SLACK_E2E_TOKEN`: Use the "r2c bot" OAuth app; you will need to configure this
+- `SLACK_E2E_TOKEN`: Use the "r2c bot" OAuth app; you will need to have a Slack admin add you
+  as a collaborator on this app, then configure this
   app at https://api.slack.com/apps/AHNH9C7SN/oauth by adding it to the r2c
   workspace, giving it permission to post to the #e2e-tests channel, then copy
   the "User OAuth Token"
