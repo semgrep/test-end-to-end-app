@@ -1,11 +1,15 @@
 import requests
 import base64
 import time, sys, os
+import logging
 from typing import Optional
 from typing import Dict
 from typing import Any
 from http import HTTPStatus
 import sentry_sdk
+
+logging.basicConfig(format='%(asctime)s [%(levelname)s] %(message)s', level=logging.INFO)
+logger = logging.getLogger(__file__)
 
 ##############################################################################
 ######## CONSTANTS ###########################################################
@@ -29,6 +33,7 @@ SENTRY_DSN = os.getenv("SENTRY_DSN", "")
 ##############################################################################
 
 def gh_create_branch(branch: str) -> None:
+    logging.info(f"Creating branch {branch}")
     resp = requests.get(
         f"https://api.github.com/repos/{REPO}/git/refs/heads/{BASE_REF}",
         headers=GH_HEADERS,
@@ -44,7 +49,7 @@ def gh_create_branch(branch: str) -> None:
         resp.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
         and resp.json()["message"] == "Reference already exists"
     ):
-        raise Exception(f"Repo {repo_full_name} already has a branch named {branch}")
+        raise Exception(f"Repo {REPO} already has a branch named {branch}")
     resp.raise_for_status()
 
 def gh_create_file(
@@ -52,6 +57,7 @@ def gh_create_file(
     file_contents: str,
     branch: Optional[str] = None,
 ) -> str:
+    logging.info(f"Creating file {file_path} on branch {branch}")
     url = f"https://api.github.com/repos/{REPO}/contents/{file_path}"
     body = {
         "message": f"add {file_path}",
@@ -79,6 +85,7 @@ def gh_create_pr(
     base_ref: str,
     branch: str,
 ) -> str:
+    logging.info(f"Creating PR with body {pr_body} on branch {branch} against {base_ref}")
     url = f"https://api.github.com/repos/{REPO}/pulls"
     body = {
         "head": branch,
@@ -95,6 +102,7 @@ def gh_create_pr(
 def gh_get_reviews(
     pull_number: int,
 ):
+    logging.info(f"Getting reviews for PR ID {pull_number}")
     url = f"https://api.github.com/repos/{REPO}/pulls/{pull_number}/reviews"
     resp = requests.get(url, headers=GH_HEADERS, timeout=30)
     resp.raise_for_status()
@@ -105,6 +113,7 @@ def gh_get_review_comments(
     pull_number: int,
     review_id: int,
 ):
+    logging.info(f"Getting review comments for PR ID {pull_number}")
     url = f"https://api.github.com/repos/{REPO}/pulls/{pull_number}/reviews/{review_id}/comments"
     resp = requests.get(url, headers=GH_HEADERS, timeout=30)
     resp.raise_for_status()
@@ -114,6 +123,7 @@ def gh_get_review_comments(
 def gh_close_pr(
     pull_number: int,
 ):
+    logging.info(f"Closing PR with number {pull_number}")
     url = f"https://api.github.com/repos/{REPO}/pulls/{pull_number}"
     body = {
         "state": "closed"
@@ -126,6 +136,7 @@ def gh_close_pr(
 def gh_delete_branch(
     branch: str
 ):
+    logging.info(f"Deleting branch {branch}")
     head_ref = f"heads/{branch}"
     url = f"https://api.github.com/repos/{REPO}/git/refs/{head_ref}"
     resp = requests.delete(url, headers=GH_HEADERS, timeout=30)
@@ -135,6 +146,9 @@ def gh_delete_branch(
 ##############################################################################
 
 def slack_last_x_messages(num_messages: int):
+    logging.info(f"Retrieving the last {num_messages} messages from Slack channels {SLACK_CHANNEL}")
+    if not SLACK_TOKEN:
+        raise Exception("No SLACK_E2E_TOKEN set")
     url = f"https://slack.com/api/conversations.history?channel={SLACK_CHANNEL}&limit={num_messages}"
     headers = {"Authorization": f"Bearer {SLACK_TOKEN}"}
     resp = requests.get(url, headers=headers, timeout=30)
@@ -147,7 +161,8 @@ def slack_last_x_messages(num_messages: int):
 ######### SENTRY API CALLS ###################################################
 ##############################################################################
 
-def notify_sentry(message: str, level: str):
+def notify_sentry(message: str, pr_id: int, level: str):
+    logging.info(f"Posting to Sentry: {message}")
     sentry_sdk.init(
         SENTRY_DSN,
         # Set traces_sample_rate to 1.0 to capture 100%
@@ -157,7 +172,13 @@ def notify_sentry(message: str, level: str):
         environment="prod",
     )
     sentry_sdk.set_level(level)
-    sentry_sdk.capture_message(message)
+
+    pr_url = f"https://github.com/semgrep/test-end-to-end-app/pull/{pr_id}"
+
+    with sentry_sdk.push_scope() as scope:
+        scope.set_extra("pr_id", pr_id)
+        scope.set_extra("pr_url", pr_url)
+        sentry_sdk.capture_message(message)
 
 ##############################################################################
 ######## HELPER FUNCTIONS ####################################################
@@ -191,7 +212,7 @@ def open_pr(run_id: int) -> str:
 def validate_pr_comment(pull_number: int, rule: str):
     reviews = gh_get_reviews(pull_number)
     if len(reviews) > 2:
-        print("Overrides may have stopped working")
+        logging.error("Overrides may have stopped working")
         notify_sentry("End-to-end Semgrep test for overrides failed", "error")
         sys.exit(1)
     review_ids = [reviews[i].get('id') for i in range(len(reviews))]
@@ -204,7 +225,7 @@ def validate_pr_comment(pull_number: int, rule: str):
 def validate_slack_notifications(run_id: int):
     messages = slack_last_x_messages(2)
     if len(messages) < 2:
-        print('found fewer than 2 slack messages')
+        logging.error('found fewer than 2 slack messages')
         return False
     for message in messages:
         if (str(run_id) not in message['blocks'][1]['elements'][1]['text']):
@@ -224,10 +245,13 @@ def run_tests():
     # Create a new PR with a known eqeq bug
     new_branch = create_branch(run_id)
     update_file(run_id)
-    pr_id = open_pr(run_id)
+    pr_id = int(open_pr(run_id))
+
+    pr_comment_prod, pr_comment_staging, slack_notifications = False, False, False
 
     for i in range(8):
         # wait for semgrep and staging.semgrep to finish running on the PR
+        logging.info(f"Sleeping for 2 minutes...")
         time.sleep(120)
         pr_comment_staging = validate_pr_comment(pr_id, 'useless-eqeq')
         pr_comment_prod = validate_pr_comment(pr_id, 'hardcoded-token')
@@ -236,23 +260,24 @@ def run_tests():
             break
         # Gives reassurance that action is still looking
         if i < 3:
-            print('Missing at least one notification... checking again in two minutes')
+            logging.warning('Missing at least one notification... checking again in two minutes')
 
     if pr_comment_prod and not pr_comment_staging:
-        print("TEST FAILED ON STAGING")
-        notify_sentry("End-to-end Semgrep test failed on staging.semgrep.dev", "error")
+        logging.error("TEST FAILED ON STAGING")
+        notify_sentry(f"End-to-end Semgrep test failed on staging.semgrep.dev: no PR comment", pr_id, "error")
         sys.exit(1)
             
     if pr_comment_staging and pr_comment_prod and slack_notifications:
         close_pr(pr_id)
         gh_delete_branch(get_branch_from_id(run_id))
-        print("SUCCESS!")
-        notify_sentry("testing e2e test alarm system - ignore me", "info")
+        logging.info("SUCCESS!")
+        notify_sentry("testing e2e test alarm system - ignore me", pr_id, "info")
         sys.exit(0)
     
     # all other cases
-    print("TEST FAILED")
-    notify_sentry("End-to-end Semgrep test failed on semgrep.dev", "error")
+    logging.error("TEST FAILED")
+    prod_failure_mode = "no PR comment" if not pr_comment_prod else "no Slack notification"
+    notify_sentry(f"End-to-end Semgrep test failed on semgrep.dev: {prod_failure_mode}", pr_id, "error")
     sys.exit(1)
 
 
