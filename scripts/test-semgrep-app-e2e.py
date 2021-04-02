@@ -32,6 +32,23 @@ SENTRY_DSN = os.getenv("SENTRY_DSN", "")
 ######## GITHUB API CALLS ####################################################
 ##############################################################################
 
+
+def gh_get_status() -> bool:
+    GH_STATUS_ENDPOINT = "https://kctbh9vrtdwd.statuspage.io/api/v2/components.json"
+    try:
+        resp = requests.get(GH_STATUS_ENDPOINT, timeout=5)
+        resp.raise_for_status()
+        gha = next(filter(lambda component: component["id"] == "br0l2tvcx85d", resp.json()["components"]))
+        if gha["status"] != "operational":
+            return False
+        logging.info("GitHub Actions are currently operational")
+        return True
+    except Exception:
+        # Assume GH Actions is working if status is down; we'd rather fail the entire e2e test loudly than silently
+        # do nothing here
+        logging.exception("Could not read GHA status from GH_STATUS_ENDPOINT")
+        return True
+
 def gh_create_branch(branch: str) -> None:
     logging.info(f"Creating branch {branch}")
     resp = requests.get(
@@ -241,6 +258,10 @@ def close_pr(pull_number: int):
 
 def run_tests():
     run_id = get_run_id()
+
+    if not gh_get_status():
+        logging.error("GitHub actions is currently down; returning with success code to avoid false positives")
+        sys.exit(0)
 
     # Create a new PR with a known eqeq bug
     new_branch = create_branch(run_id)
