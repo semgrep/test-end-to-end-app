@@ -46,8 +46,29 @@ def gh_get_status() -> bool:
     except Exception:
         # Assume GH Actions is working if status is down; we'd rather fail the entire e2e test loudly than silently
         # do nothing here
-        logging.exception("Could not read GHA status from GH_STATUS_ENDPOINT")
+        logging.exception(f"Could not read GHA status from {GH_STATUS_ENDPOINT}")
         return True
+
+
+def gh_get_check_run_started(branch: str) -> bool:
+    action_endpoint = f"https://api.github.com/repos/{REPO}/commits/{branch}/check-runs"
+    attempts_remaining = 10
+    sleep_seconds = 12.0
+    while attempts_remaining:
+        attempts_remaining -= 1
+        logging.info(f"Checking for start of semgrep-action run... (approximately {attempts_remaining * sleep_seconds / 60.0} minutes remaining)")
+        try:
+            resp = requests.get(action_endpoint, timeout=5)
+            resp.raise_for_status()
+            run_counts = resp.json()["total_count"]
+            if run_counts >= 2:  # We run a prod and a staging action
+                logging.info("Semgrep-action checks have started")
+                return True
+        except Exception:
+            logging.exception(f"Could not read check runs from {action_endpoint}")
+        time.sleep(sleep_seconds)
+    return False
+
 
 def gh_create_branch(branch: str) -> None:
     logging.info(f"Creating branch {branch}")
@@ -267,6 +288,10 @@ def run_tests():
     new_branch = create_branch(run_id)
     update_file(run_id)
     pr_id = int(open_pr(run_id))
+
+    if not gh_get_check_run_started(new_branch):
+        logging.error("GitHub actions are not starting; returning with success code to avoid false positives")
+        sys.exit(0)
 
     pr_comment_prod, pr_comment_staging, slack_notifications = False, False, False
 
