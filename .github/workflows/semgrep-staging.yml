@@ -7,6 +7,7 @@ jobs:
     runs-on: ubuntu-latest
     env:	
       INPUT_PUBLISHURL: https://staging.semgrep.dev
+      GITHUB_ACTIONS: 1
     steps:
     - uses: actions/checkout@v2
     - uses: returntocorp/semgrep-action@v1
